@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文章配图总是一张一个画风？聊聊“角色一致性”配图的规划思路和实现细节</title>
+<meta name="description" content="写技术博客、公众号的朋友应该都有这种体验：文章三个小时写完，配图又花了一个小时。去图库找，风格五花八门；直接让 AI 画，一张一个画风，第一张是扁平插画，第二张就成了 3D 渲染，第三张干脆冒出个写实人像。放到一篇文章里，看着像拼了好几个人的作品。 这件事我折腾了很久，最后摸索出一套“先规划、再出图、角色固定”的流程，">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f5f0;--card:#fff;--text:#1a1a1a;--muted:#5c5c5c;--accent:#1a73e8;--border:#e6e2d8;--code-bg:#f0eee8}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;font-size:17px;line-height:1.85;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+article{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2rem 1.75rem 2.5rem;box-shadow:0 8px 30px rgba(0,0,0,.04)}
+h1{font-family:"Noto Serif SC",serif;font-size:clamp(1.55rem,4vw,2rem);line-height:1.4;margin:0 0 1.25rem;font-weight:700}
+h2{font-family:"Noto Serif SC",serif;font-size:1.35rem;margin:2.25rem 0 .9rem;padding-top:.5rem;border-top:1px solid var(--border);font-weight:700}
+h2:first-of-type{border-top:none;padding-top:0}h3{font-size:1.1rem;margin:1.5rem 0 .6rem}
+p{margin:.9rem 0}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+ul,ol{padding-left:1.35rem;margin:.8rem 0}li{margin:.35rem 0}strong{font-weight:700}
+img{display:block;max-width:100%;height:auto;margin:1.1rem auto .35rem;border-radius:10px;border:1px solid var(--border);background:#fafafa}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font-size:.88rem;line-height:1.55}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre code{background:none;padding:0}
+blockquote{margin:1rem 0;padding:.2rem 0 .2rem 1rem;border-left:3px solid var(--accent);color:var(--muted)}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.95rem}
+th,td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}th{background:#f3f1eb}
+.meta{color:var(--muted);font-size:.92rem;margin-bottom:1.5rem}
+.pages-banner{margin:0 0 1.25rem;padding:.75rem 1rem;background:#eef5ff;border:1px solid #d0e2ff;border-radius:10px;font-size:.95rem}
+footer{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border);color:var(--muted);font-size:.88rem}
+</style></head><body><div class="wrap"><article>
+<div class="pages-banner">在线阅读（GitHub Pages）：<a href="https://maynor996.github.io/character-consistent-images/">https://maynor996.github.io/character-consistent-images/</a></div>
+<h1>文章配图总是一张一个画风？聊聊“角色一致性”配图的规划思路和实现细节</h1>
+<div class="meta">原文：<a href="https://blog.csdn.net/xianyu120/article/details/167085770">https://blog.csdn.net/xianyu120/article/details/167085770</a></div>
+<p>写技术博客、公众号的朋友应该都有这种体验：文章三个小时写完，配图又花了一个小时。去图库找，风格五花八门；直接让 AI 画，一张一个画风，第一张是扁平插画，第二张就成了 3D 渲染，第三张干脆冒出个写实人像。放到一篇文章里，看着像拼了好几个人的作品。</p>
+<p>这件事我折腾了很久，最后摸索出一套“先规划、再出图、角色固定”的流程，也顺手写成了自己用的小工具。这篇不讲工具本身，主要分享背后的思路和几个踩过的坑，用别的模型、别的工具也能照着做。</p>
+<p><img alt="全文 → 筛一筛 → 值得画的" src="imgs/01.png" /></p>
+<h3>一、为什么配图要“角色统一”</h3>
+<p>公众号、博客、Newsletter 这类长文，读者往往一路往下滑。配图对他们来说主要有两个作用：</p>
+<ol>
+<li><strong>断句和喘气</strong> ：一大段文字中间插一张图，阅读节奏就松下来了；</li>
+<li><strong>把抽象观点具象化</strong> ：“先验证需求再做产品”这种话读十遍不如一张图记得牢。</li>
+</ol>
+<p>在这两点之上，统一的角色还会带来第三个效果：<strong>辨识度</strong> 。读者连着看到同一个小家伙在不同文章里搬箱子、拉拉杆、摇筛子，慢慢会把它和你这个作者联系起来。很多做得好的科普号都有自己的“吉祥物”，道理一样。</p>
+<p>问题在于，靠通用文生图模型很难做到这一点。每次都是从零生成，角色的比例、线条粗细、配色都会漂。你得自己写一大段角色设定，每张图都贴进去，还要逐张检查。我试下来，最耗时间的环节其实是<strong>决定每张图画什么</strong> ，生成反而是最快的。</p>
+<h3>二、思路：先当美术指导，再当画师</h3>
+<p>我把流程拆成三步。</p>
+<p><strong>1. 通读全文</strong> ：把整篇文章交给一个大模型，而不是一段一段地让它配图。</p>
+<p><strong>2. 规划</strong> ：让模型像美术指导一样做三件事：</p>
+<ul>
+<li>挑出真正值得画的“认知锚点”，而不是每段都配一张；</li>
+<li>给每个锚点选一种结构，比如流程、前后对比、概念隐喻、路线图、小漫画；</li>
+<li>为每张图想一个<strong>低科技的物理隐喻</strong> （筛子、传送带、漏斗、压箱子），并标出它应该插在哪一段后面。</li>
+</ul>
+<p>规划阶段我定了一条硬规则：<strong>角色必须在干活</strong> 。它得摇筛子、搬箱子、拉拉杆，不能只是站在旁边摆拍。如果把角色去掉画面照样成立，就让模型把这张图重写一遍。这条规则对画面质量的提升比调任何参数都大。</p>
+<p><strong>3. 出图</strong> ：每个画面描述先人工过一遍，确认后再生成。风格固定为：纯白背景、极简黑色手绘线稿、大量留白，再加少量红/橙/蓝的手写批注，图中标注跟随文章语言。</p>
+<p><img alt="把“问题”倒进机器，产出文章和工具" src="imgs/02.webp" /></p>
+<p>核心不是“画得多好看”，而是把<strong>画什么、放哪里、谁来画</strong> 这三件事先想清楚，而且整篇文章、甚至整个系列都是同一个角色。</p>
+<p>下面两张是按这套流程出的图，同一个角色，同一套线条：</p>
+<p><img alt="没人知道 → 分发 → 曝光" src="imgs/03.webp" /></p>
+<p><img alt="先写内容 → 重复三次的真实需求 → 再做工具" src="imgs/04.webp" /></p>
+<h3>三、不同调性的号，适合不同性格的角色</h3>
+<p>一开始我只用一个角色，后来发现不同调性的内容适合不同性格，就设计了几个备选：</p>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>性格</th>
+<th>适合的内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>独眼蛋</td>
+<td>面无表情、勤勤恳恳</td>
+<td>方法论、流程类</td>
+</tr>
+<tr>
+<td>墨点</td>
+<td>安静的完美主义者，一笔到位</td>
+<td>设计、审美类</td>
+</tr>
+<tr>
+<td>短铅笔</td>
+<td>被削短也不放弃的老实人</td>
+<td>成长、复盘类</td>
+</tr>
+<tr>
+<td>糯米团</td>
+<td>看着很懒，往上一坐事就办妥</td>
+<td>效率、工具类</td>
+</tr>
+<tr>
+<td>小本子</td>
+<td>好奇宝宝，什么都要先记下来</td>
+<td>学习笔记类</td>
+</tr>
+<tr>
+<td>小云朵</td>
+<td>迷糊但会照顾想法</td>
+<td>灵感、随笔类</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="6 个角色" src="imgs/05.png" /></p>
+<p>设计角色时有个小经验：<strong>外形越简单、特征越少越好</strong> 。一个“歪歪的空心独眼蛋，头顶弹簧天线”，模型几乎每次都能画对；一个穿着复杂服装的人物，五张里能有两张不跑偏就不错了。</p>
+<h3>四、实现上的几个细节</h3>
+<ul>
+<li><strong>规划和出图分离</strong> ：规划用速度快的文本模型，只输出结构化的场景 JSON（插入位置、结构类型、隐喻、角色动作、标注文字）；出图时在服务端把 JSON 拼成完整提示词，再调用图像模型（我用的是 GPT Image 2.5）。这样规划结果可以人工改，改完再出图，不浪费生成次数。</li>
+<li><strong>角色设定作为常量注入</strong> ：角色的外形描述固定写在提示词模板里，每一次出图请求都带上，而不是指望模型“记住”上一张。这是保持一致性的关键。</li>
+<li><strong>风格描述也要固定</strong> ：背景色、线条粗细、批注颜色、留白比例都写死在模板里，只让“画面内容”这一部分变化。</li>
+<li><strong>失败就改描述重试</strong> ：出图失败或明显跑偏时，与其反复重抽，不如回到场景描述，把角色动作写得更具体。</li>
+</ul>
+<h3>最后</h3>
+<p>总结一下：配图想要统一，关键不在模型多强，而在于<strong>先规划、角色和风格写死、只让画面内容变化</strong> 。如果你也常写长文、被配图卡住过，可以按这个思路自己搭一套试试。</p>
+<p>大家在给文章配图时还遇到过哪些问题，或者有更好的保持角色一致的办法，欢迎在评论区交流。</p>
+<footer>镜像自 CSDN @xianyu120 · 内容以原文为准</footer>
+</article></div></body></html>

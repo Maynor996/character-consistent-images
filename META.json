@@ -1,0 +1,9 @@
+{
+  "slug": "character-consistent-images",
+  "title": "文章配图总是一张一个画风？聊聊“角色一致性”配图的规划思路和实现细节",
+  "csdn": "https://blog.csdn.net/xianyu120/article/details/167085770",
+  "pages": "https://maynor996.github.io/character-consistent-images/",
+  "source": "scrape",
+  "imgs": 5,
+  "workdir": "/workspace/csdn-mirror/build/character-consistent-images"
+}
